@@ -1,0 +1,6 @@
+jax
+optax
+jaxtyping
+tqdm
+pyyaml
+wandb
