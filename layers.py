@@ -80,13 +80,12 @@ def create_attention(rng: jax.random.PRNGKey, d_model: int, d_k: int):
     linear_q, params["w_q"] = create_linear(q_key, d_model, d_k)
     linear_k, params["w_k"] = create_linear(k_key, d_model, d_k)
     linear_v, params["w_v"] = create_linear(v_key, d_model, d_k)
-    linear_output, params["output"] = create_linear(output_key, d_model, d_model)
 
     def forward(params: dict, x: jnp.ndarray, mask: jnp.ndarray = None) -> jnp.ndarray:
         q = linear_q(params["w_q"], x)
         k = linear_k(params["w_k"], x)
         v = linear_v(params["w_v"], x)
-        return linear_output(params["output"], attention(q, k, v, mask=mask))
+        return attention(q, k, v, mask=mask)
 
     return forward, params
 
@@ -177,7 +176,9 @@ def create_autoregressive_transformer(
     d_k = d_model // n_heads
     # Map to the vocabulary size
     rng, emb_key = jax.random.split(rng)
-    emb_layer, params["embedding"] = create_embedding(emb_key, n_vocab, d_model)
+    emb_layer, params["embedding"] = create_embedding(
+        emb_key, n_vocab, d_model, lambda_pe=lambda_pe
+    )
     # Initialize the attention layers
     layer_params = dict()
     multi_head_attentions = []
