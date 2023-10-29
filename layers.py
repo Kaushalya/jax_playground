@@ -1,5 +1,6 @@
+import re
 from typing import Callable, Union
-
+from jaxtyping import Key, Array, Float
 import jax
 import jax.numpy as jnp
 
@@ -14,7 +15,7 @@ def standardize(x: jnp.ndarray, eps: float = 1e-5) -> jnp.ndarray:
 
 
 def create_embedding(
-    rng: jax.random.PRNGKey,
+    rng: Key,
     n_embeddings: int,
     n_dim: int,
     lambda_pe: float = 1.0,
@@ -26,7 +27,7 @@ def create_embedding(
     if use_pos:
         embeddings["pos"] = jnp.zeros((max_len, n_dim))
 
-    def forward(params: dict, x: jnp.ndarray) -> jnp.ndarray:
+    def forward(params: dict, x: Float[Array, "..."]) -> Float[Array, "..."]:
         emb = jnp.take(params["emb"], x, axis=0)
         if "pos" in params:
             if x.shape[0] > params["pos"].shape[0]:
@@ -37,14 +38,16 @@ def create_embedding(
     return forward, embeddings
 
 
-def elementwise_linear(params: dict, x: jnp.ndarray) -> jnp.ndarray:
+def elementwise_linear(params: dict, x: Float[Array, "..."]) -> Float[Array, "..."]:
     return x * params["gain"] + params["bias"]
 
 
 def create_layernorm(shape: Union[int, tuple, list]) -> tuple[Callable, dict]:
     params = dict(gain=jnp.ones(shape), bias=jnp.zeros(shape))
 
-    def forward(params: dict, x: jnp.ndarray, eps: float = 1e-5) -> jnp.ndarray:
+    def forward(
+        params: dict, x: Float[Array, "..."], eps: float = 1e-5
+    ) -> Float[Array, "..."]:
         return elementwise_linear(params, standardize(x, eps=eps))
 
     return forward, params
@@ -52,36 +55,73 @@ def create_layernorm(shape: Union[int, tuple, list]) -> tuple[Callable, dict]:
 
 # Linear layer
 def create_linear(
-    rng: jax.random.PRNGKey, in_features: int, out_features: int
+    rng: Key, in_features: int, out_features: int
 ) -> tuple[Callable, dict]:
     weights = jax.random.uniform(rng, (in_features, out_features))
     bias = jnp.zeros(out_features)
     params = dict(w=weights, b=bias)
 
-    def forward(params: dict, x: jnp.ndarray) -> jnp.ndarray:
+    def forward(params: dict, x: Float[Array, "..."]) -> Float[Array, "..."]:
         return x @ params["w"] + params["b"]
 
     return forward, params
 
 
 # Attention layer
-def attention(q, k, v, mask: jnp.ndarray = None) -> jnp.ndarray:
+def attention(
+    q: Float[Array, "heads seq_len d_k"],
+    k: Float[Array, "heads seq_len d_k"],
+    v: Float[Array, "heads seq_len d_k"],
+    mask: Float[Array, "seq_len seq_len"] = None,
+) -> Float[Array, "heads seq_len d_k"]:
     d_k = q.shape[-1]
-    score = q @ k.T / jnp.sqrt(d_k)
+    k_axes = (1, 0)
+    if q.ndim == 3:
+        k_axes = (0, 2, 1)
+    score = q @ k.transpose(k_axes) / jnp.sqrt(d_k)
     if mask is not None:
         score += mask
     attn = jax.nn.softmax(score, axis=1)
     return attn @ v
 
 
-def create_attention(rng: jax.random.PRNGKey, d_model: int, d_k: int):
-    rng, q_key, k_key, v_key, output_key = jax.random.split(rng, 5)
+def create_fast_attention(rng: Key, heads: int, d_model: int, d_k: int):
+    rng, q_key, k_key, v_key = jax.random.split(rng, 4)
+    params = dict()
+    linear_q, params["w_q"] = create_linear(q_key, d_model, heads * d_k)
+    linear_k, params["w_k"] = create_linear(k_key, d_model, heads * d_k)
+    linear_v, params["w_v"] = create_linear(v_key, d_model, heads * d_k)
+
+    def forward(
+        params: dict, x: Float[Array, "seq_len d_model"], mask: jnp.ndarray = None
+    ) -> Float[Array, "seq_len d_model"]:
+        q = linear_q(params["w_q"], x)  # Shape: (seq_len, heads * d_k)
+        k = linear_k(params["w_k"], x)
+        v = linear_v(params["w_v"], x)
+        head_shape = x.shape[:-1]
+        # Add a new dimension for heads and move it to the front
+        q, k, v = map(
+            lambda x: x.reshape(*head_shape, heads, d_k).transpose((1, 0, 2)), (q, k, v)
+        )  # Shape: (heads, seq_len, d_k)
+        output = attention(q, k, v, mask=mask)  # Shape: (heads, seq_len, d_k)
+        output = output.transpose((1, 0, 2)).reshape(
+            -1, heads * d_k
+        )  # Shape: (seq_len, heads * d_k)
+        return output
+
+    return forward, params
+
+
+def create_attention(rng: Key, d_model: int, d_k: int):
+    rng, q_key, k_key, v_key = jax.random.split(rng, 4)
     params = dict()
     linear_q, params["w_q"] = create_linear(q_key, d_model, d_k)
     linear_k, params["w_k"] = create_linear(k_key, d_model, d_k)
     linear_v, params["w_v"] = create_linear(v_key, d_model, d_k)
 
-    def forward(params: dict, x: jnp.ndarray, mask: jnp.ndarray = None) -> jnp.ndarray:
+    def forward(
+        params: dict, x: Float[Array, "seq_len d_model"], mask: jnp.ndarray = None
+    ) -> Float[Array, "seq_len d_k"]:
         q = linear_q(params["w_q"], x)
         k = linear_k(params["w_k"], x)
         v = linear_v(params["w_v"], x)
@@ -91,14 +131,16 @@ def create_attention(rng: jax.random.PRNGKey, d_model: int, d_k: int):
 
 
 def create_feed_forward(
-    rng: jax.random.PRNGKey, in_features: int, out_features: int, hidden_features: int
+    rng: Key, in_features: int, out_features: int, hidden_features: int
 ) -> tuple[Callable, dict]:
     params = dict()
     rng1, rng2 = jax.random.split(rng)
     linear1, params["ff1"] = create_linear(rng1, in_features, hidden_features)
     linear2, params["ff2"] = create_linear(rng2, hidden_features, out_features)
 
-    def forward(params: dict, x: jnp.ndarray) -> jnp.ndarray:
+    def forward(
+        params: dict, x: Float[Array, "seq_len d_model"]
+    ) -> Float[Array, "seq_len d_model"]:
         x = jax.nn.relu(linear1(params["ff1"], x))
         return linear2(params["ff2"], x)
 
@@ -107,7 +149,12 @@ def create_feed_forward(
 
 # Multi-head attention
 def create_multi_head_attention(
-    rng: jax.random.PRNGKey, n_heads: int, d_model: int, d_ff: int, d_k: int
+    rng: Key,
+    n_heads: int,
+    d_model: int,
+    d_ff: int,
+    d_k: int,
+    fast: bool = False,
 ) -> dict:
     params = dict()
     # pre-attention layer norm
@@ -115,28 +162,39 @@ def create_multi_head_attention(
     # pre-feedforward layer norm
     layernorm2, params["ln2"] = create_layernorm(d_model)
     head_params = dict()
-    heads = []
-    for i in range(n_heads):
+    if fast:
         rng, head_key = jax.random.split(rng)
-        attn, head_params[f"head_{i}"] = create_attention(head_key, d_model, d_k)
-        heads.append(attn)
-    rng, output_key, ff_key = jax.random.split(rng, 3)
+        attn, head_params = create_fast_attention(head_key, n_heads, d_model, d_k)
+    else:
+        heads = []
+        for i in range(n_heads):
+            rng, head_key = jax.random.split(rng)
+            attn, head_params[f"head_{i}"] = create_attention(head_key, d_model, d_k)
+            heads.append(attn)
     params["heads"] = head_params
+    rng, output_key, ff_key = jax.random.split(rng, 3)
     linear_output, params["output"] = create_linear(output_key, d_model, d_model)
     feed_forward, params["ff"] = create_feed_forward(ff_key, d_model, d_model, d_ff)
 
-    def forward(params: dict, x: jnp.ndarray, mask: jnp.ndarray = None) -> jnp.ndarray:
+    def forward(
+        params: dict,
+        x: Float[Array, "seq_len d_model"],
+        mask: Float[Array, "seq_len seq_len"] = None,
+    ) -> jnp.ndarray:
         head_params = params["heads"]
         # Add batch dimension
         t1 = layernorm1(params["ln1"], x)
         # Run attention layers in parallel
-        t1 = jnp.concatenate(
-            [
-                attn(attn_params, t1, mask=mask)
-                for attn, attn_params in zip(heads, head_params.values())
-            ],
-            axis=-1,
-        )
+        if fast:
+            t1 = attn(head_params, t1, mask=mask)
+        else:
+            t1 = jnp.concatenate(
+                [
+                    attn(attn_params, t1, mask=mask)
+                    for attn, attn_params in zip(heads, head_params.values())
+                ],
+                axis=-1,
+            )
         x += linear_output(params["output"], t1)
         t2 = layernorm2(params["ln2"], x)
         # Apply the feed forward layer
@@ -156,6 +214,7 @@ def create_autoregressive_transformer(
     d_ff: int,
     n_vocab: int,
     lambda_pe: float = 1.0,
+    fast: bool = False,
     eps: float = 1e-5,
 ) -> dict:
     """Initializes the transformer model
@@ -181,13 +240,13 @@ def create_autoregressive_transformer(
     )
     # Initialize the attention layers
     layer_params = dict()
-    multi_head_attentions = []
+    layers = []
     for li in range(n_layers):
         rng, mha_key = jax.random.split(rng)
         mha_fn, layer_params[f"layer_{li}"] = create_multi_head_attention(
-            mha_key, n_heads, d_model, d_ff, d_k
+            mha_key, n_heads, d_model, d_ff, d_k, fast=fast
         )
-        multi_head_attentions.append(mha_fn)
+        layers.append(mha_fn)
     params["layers"] = layer_params
     layernorm, params["ln"] = create_layernorm(d_model)
     rng, output_key = jax.random.split(rng)
@@ -212,8 +271,8 @@ def create_autoregressive_transformer(
 
         # Apply transformer layers
         layer_params = params["layers"]
-        for mha_fn, layer_param in zip(multi_head_attentions, layer_params.values()):
-            x = mha_fn(layer_param, x, mask=mask)
+        for layer_fn, layer_param in zip(layers, layer_params.values()):
+            x = layer_fn(layer_param, x, mask=mask)
         x = layernorm(params["ln"], x)
         x = linear_output(params["output"], x)
         return x
