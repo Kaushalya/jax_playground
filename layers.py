@@ -85,7 +85,9 @@ def attention(
     return attn @ v
 
 
-def create_fast_attention(rng: Key, heads: int, d_model: int, d_k: int):
+def create_fast_attention(
+    rng: Key, heads: int, d_model: int, d_k: int
+) -> tuple[Callable, dict]:
     rng, q_key, k_key, v_key = jax.random.split(rng, 4)
     params = dict()
     linear_q, params["w_q"] = create_linear(q_key, d_model, heads * d_k)
@@ -93,7 +95,9 @@ def create_fast_attention(rng: Key, heads: int, d_model: int, d_k: int):
     linear_v, params["w_v"] = create_linear(v_key, d_model, heads * d_k)
 
     def forward(
-        params: dict, x: Float[Array, "seq_len d_model"], mask: jnp.ndarray = None
+        params: dict,
+        x: Float[Array, "seq_len d_model"],
+        mask: Float[Array, "seq_len seq_len"] = None,
     ) -> Float[Array, "seq_len d_model"]:
         q = linear_q(params["w_q"], x)  # Shape: (seq_len, heads * d_k)
         k = linear_k(params["w_k"], x)
@@ -112,7 +116,7 @@ def create_fast_attention(rng: Key, heads: int, d_model: int, d_k: int):
     return forward, params
 
 
-def create_attention(rng: Key, d_model: int, d_k: int):
+def create_attention(rng: Key, d_model: int, d_k: int = None) -> tuple[Callable, dict]:
     rng, q_key, k_key, v_key = jax.random.split(rng, 4)
     params = dict()
     linear_q, params["w_q"] = create_linear(q_key, d_model, d_k)
@@ -120,7 +124,9 @@ def create_attention(rng: Key, d_model: int, d_k: int):
     linear_v, params["w_v"] = create_linear(v_key, d_model, d_k)
 
     def forward(
-        params: dict, x: Float[Array, "seq_len d_model"], mask: jnp.ndarray = None
+        params: dict,
+        x: Float[Array, "seq_len d_model"],
+        mask: Float[Array, "seq_len seq_len"] = None,
     ) -> Float[Array, "seq_len d_k"]:
         q = linear_q(params["w_q"], x)
         k = linear_k(params["w_k"], x)
@@ -155,7 +161,7 @@ def create_multi_head_attention(
     d_ff: int,
     d_k: int,
     fast: bool = False,
-) -> dict:
+) -> tuple[Callable, dict]:
     params = dict()
     # pre-attention layer norm
     layernorm1, params["ln1"] = create_layernorm(d_model)
@@ -216,7 +222,7 @@ def create_autoregressive_transformer(
     lambda_pe: float = 1.0,
     fast: bool = False,
     eps: float = 1e-5,
-) -> dict:
+) -> tuple[Callable, dict]:
     """Initializes the transformer model
 
     Args:
