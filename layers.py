@@ -1,4 +1,6 @@
+import re
 from typing import Callable, Union
+from jaxtyping import Key, Array, Float
 from jaxtyping import Key, Array, Float
 import jax
 import jax.numpy as jnp
@@ -255,6 +257,7 @@ def create_autoregressive_transformer(
     )
     # Initialize the attention layers
     layer_params = dict()
+    layers = []
     layers = []
     for li in range(n_layers):
         rng, mha_key = jax.random.split(rng)
