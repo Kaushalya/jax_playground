@@ -27,7 +27,9 @@ def create_embedding(
     if use_pos:
         embeddings["pos"] = jnp.zeros((max_len, n_dim))
 
-    def forward(params: dict, x: Float[Array, "..."]) -> Float[Array, "..."]:
+    def forward(
+        params: dict, x: Float[Array, "seq_len"]
+    ) -> Float[Array, "seq_len n_dim"]:
         emb = jnp.take(params["emb"], x, axis=0)
         if "pos" in params:
             if x.shape[0] > params["pos"].shape[0]:
@@ -213,7 +215,7 @@ def create_multi_head_attention(
 
 # Auto-regressive transformer
 def create_autoregressive_transformer(
-    rng: jax.random.PRNGKey,
+    rng: Key,
     n_layers: int,
     n_heads: int,
     d_model: int,
