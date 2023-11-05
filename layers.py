@@ -80,11 +80,11 @@ def attention(
     k_axes = (1, 0)
     if q.ndim == 3:
         k_axes = (0, 2, 1)
-    score = q @ k.transpose(k_axes) / jnp.sqrt(d_k)
+    score = q @ k.transpose(k_axes) / jnp.sqrt(d_k) # Shape: (heads, seq_len, seq_len)
     if mask is not None:
-        score += mask
-    attn = jax.nn.softmax(score, axis=1)
-    return attn @ v
+        score += mask[None, :, :]
+    attn = jax.nn.softmax(score, axis=1) # Shape: (heads, seq_len, seq_len)
+    return attn @ v # Shape: (heads, seq_len, d_k)
 
 
 def create_fast_attention(
