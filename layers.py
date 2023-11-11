@@ -1,4 +1,3 @@
-import re
 from typing import Callable, Union
 from jaxtyping import Key, Array, Float
 import jax
@@ -8,10 +7,6 @@ import jax.numpy as jnp
 def cross_entropy_loss(output: jnp.ndarray, target: jnp.ndarray) -> jnp.ndarray:
     # $$- \sum_k y_k \log \hat{y}_k$$
     return -jax.nn.log_softmax(output)[target]
-
-
-def standardize(x: jnp.ndarray, eps: float = 1e-5) -> jnp.ndarray:
-    return (x - x.mean()) / (x.std() + eps)
 
 
 def create_embedding(
@@ -34,23 +29,30 @@ def create_embedding(
         if "pos" in params:
             if x.shape[0] > params["pos"].shape[0]:
                 raise ValueError("Input sequence is too long")
-            emb += lambda_pe * params["pos"][: x.shape[0]]
+            emb = emb * lambda_pe + params["pos"][: x.shape[0]]
         return emb
 
     return forward, embeddings
 
 
-def elementwise_linear(params: dict, x: Float[Array, "..."]) -> Float[Array, "..."]:
-    return x * params["gain"] + params["bias"]
-
-
 def create_layernorm(shape: Union[int, tuple, list]) -> tuple[Callable, dict]:
     params = dict(gain=jnp.ones(shape), bias=jnp.zeros(shape))
+    shape = tuple(shape)
 
     def forward(
         params: dict, x: Float[Array, "..."], eps: float = 1e-5
     ) -> Float[Array, "..."]:
-        return elementwise_linear(params, standardize(x, eps=eps))
+        assert shape == x.shape[-len(shape) :]
+        # The exes to calculate the mean and variance on
+        axes = [-(i + 1) for i in range(len(shape))]
+        # Calculate the mean of all elements along feature axes
+        mean = x.mean(axis=axes, keepdims=True)
+        std = x.std(axis=axes, keepdims=True)
+        # Normalize $$\hat{X} = \frac{X - \mathbb{E}[X]}{\sqrt{Var[X] + \epsilon}}$$
+        x_norm = (x - mean) / (std + eps)
+        # Elementwise linear transformation
+        x_norm = params["gain"] * x_norm + params["bias"]
+        return x_norm
 
     return forward, params
 
@@ -59,8 +61,12 @@ def create_layernorm(shape: Union[int, tuple, list]) -> tuple[Callable, dict]:
 def create_linear(
     rng: Key, in_features: int, out_features: int
 ) -> tuple[Callable, dict]:
-    weights = jax.random.uniform(rng, (in_features, out_features))
-    bias = jnp.zeros(out_features)
+    rng, w_key = jax.random.split(rng)
+    rnd_range = 1 / in_features**0.5
+    weights = jax.random.uniform(
+        w_key, (in_features, out_features), minval=-rnd_range, maxval=rnd_range
+    )
+    bias = jnp.zeros((out_features,))
     params = dict(w=weights, b=bias)
 
     def forward(params: dict, x: Float[Array, "..."]) -> Float[Array, "..."]:
@@ -80,11 +86,14 @@ def attention(
     k_axes = (1, 0)
     if q.ndim == 3:
         k_axes = (0, 2, 1)
-    score = q @ k.transpose(k_axes) / jnp.sqrt(d_k) # Shape: (heads, seq_len, seq_len)
+        mask = mask[None, :, :]
+    score = q @ k.transpose(k_axes)  # Shape: (heads, seq_len, seq_len)
+    # Scale the score by the square root of the dimensionality
+    score /= d_k**0.5
     if mask is not None:
-        score += mask[None, :, :]
-    attn = jax.nn.softmax(score, axis=1) # Shape: (heads, seq_len, seq_len)
-    return attn @ v # Shape: (heads, seq_len, d_k)
+        score += mask
+    attn = jax.nn.softmax(score, axis=-1)  # Shape: (heads, seq_len, seq_len)
+    return attn @ v  # Shape: (heads, seq_len, d_k)
 
 
 def create_fast_attention(
@@ -166,9 +175,9 @@ def create_multi_head_attention(
 ) -> tuple[Callable, dict]:
     params = dict()
     # pre-attention layer norm
-    layernorm1, params["ln1"] = create_layernorm(d_model)
+    layernorm1, params["ln1"] = create_layernorm([d_model])
     # pre-feedforward layer norm
-    layernorm2, params["ln2"] = create_layernorm(d_model)
+    layernorm2, params["ln2"] = create_layernorm([d_model])
     head_params = dict()
     if fast:
         rng, head_key = jax.random.split(rng)
@@ -256,7 +265,7 @@ def create_autoregressive_transformer(
         )
         layers.append(mha_fn)
     params["layers"] = layer_params
-    layernorm, params["ln"] = create_layernorm(d_model)
+    layernorm, params["ln"] = create_layernorm([d_model])
     rng, output_key = jax.random.split(rng)
     linear_output, params["output"] = create_linear(output_key, d_model, n_vocab)
 
