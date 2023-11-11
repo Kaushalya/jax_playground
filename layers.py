@@ -1,4 +1,3 @@
-import re
 from typing import Callable, Union
 from jaxtyping import Key, Array, Float
 from jaxtyping import Key, Array, Float
