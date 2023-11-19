@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import argparse
 import os
 from typing import Callable
@@ -13,26 +12,6 @@ from dataset import TinyShakespeare
 from layers import create_autoregressive_transformer, cross_entropy_loss
 from model_utils import sample, save_params
 from file_utils import load_yaml
-=======
-import jax
-import jax.numpy as jnp
-from tqdm import tqdm
-import optax
-from dataset import TinyShakespeare
-from layers import cross_entropy_loss
-from model_utils import sample
-from layers import create_autoregressive_transformer
-
-
-def test_model(model, params, dataset):
-    x = dataset.data[0:16]
-    x_shape = x.shape
-    print(x_shape)
-    output = model(params, x)
-    loss, grad = grad_loss_fn(params, x)
-    print(output.shape)
-    print(f"Loss: {loss:.2f}")
->>>>>>> 50e79c6 (Refactor code)
 
 
 def evaluate_model(model, params, length=20):
@@ -42,7 +21,6 @@ def evaluate_model(model, params, length=20):
     print(sampled)
 
 
-<<<<<<< HEAD
 def train_model(
     model: Callable,
     params: dict,
@@ -54,9 +32,6 @@ def train_model(
     _run: wandb.wandb_sdk.wandb_run.Run = None,
 ):
     os.makedirs(model_dir, exist_ok=True)
-=======
-def train_model(model, params, dataset, grad_loss_fn, n_epochs, learning_rate=0.001):
->>>>>>> 50e79c6 (Refactor code)
     # Create optimizer
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(params)
@@ -71,7 +46,6 @@ def train_model(model, params, dataset, grad_loss_fn, n_epochs, learning_rate=0.
             params = optax.apply_updates(params, updates)
             if i == 0 or (i + 1) % 1000 == 0:
                 print(f"{i+1}: Loss: {loss:.2f}")
-<<<<<<< HEAD
         epoch_loss = jnp.mean(jnp.array(losses))
         print(f"Epoch {epoch} loss: {epoch_loss:.2f}")
         if _run is not None:
@@ -109,24 +83,6 @@ if __name__ == "__main__":
     model_dir = configs["model_dir"]
 
     rnd_key = jax.random.PRNGKey(seed)
-=======
-        print(f"Epoch {epoch} loss: {jnp.mean(loss)}")
-        evaluate_model(model, params, length=20+epoch//2)
-
-
-if __name__ == "__main__":
-    print(jax.devices())
-    seed = 1212
-    rnd_key = jax.random.PRNGKey(seed)
-    d_model = 512
-    num_heads = 8
-    num_layers = 3
-    d_ff = 512
-    batch_size = 128
-    seq_len = 32
-    n_epochs = 100
-    learning_rate = 0.001
->>>>>>> 50e79c6 (Refactor code)
     dataset = TinyShakespeare(rnd_key, batch_size=batch_size, seq_len=seq_len)
     n_vocab = dataset.n_tokens
 
@@ -157,7 +113,6 @@ if __name__ == "__main__":
         return batched_loss(params, seq).mean()
 
     grad_loss_fn = jax.jit(jax.value_and_grad(get_loss, argnums=0))
-<<<<<<< HEAD
 
     with wandb.init(project="jax-transformer", config=configs) as run:
         params = train_model(
@@ -170,7 +125,3 @@ if __name__ == "__main__":
             learning_rate=learning_rate,
             _run=run,
         )
-=======
-    train_model(jax.jit(transformer_model), params, dataset, grad_loss_fn, n_epochs, 
-                learning_rate=learning_rate)
->>>>>>> 50e79c6 (Refactor code)
