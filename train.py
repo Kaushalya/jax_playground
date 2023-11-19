@@ -1,10 +1,12 @@
+import os
+from typing import Callable
 import jax
 import jax.numpy as jnp
 from tqdm import tqdm
 import optax
 from dataset import TinyShakespeare
 from layers import cross_entropy_loss
-from model_utils import sample
+from model_utils import sample, save_params
 from layers import create_autoregressive_transformer
 
 
@@ -25,7 +27,16 @@ def evaluate_model(model, params, length=20):
     print(sampled)
 
 
-def train_model(model, params, dataset, grad_loss_fn, n_epochs, learning_rate=0.001):
+def train_model(
+    model: Callable,
+    params: dict,
+    dataset,
+    grad_loss_fn: Callable,
+    n_epochs: int,
+    model_dir: str,
+    learning_rate: float = 0.001,
+):
+    os.makedirs(model_dir, exist_ok=True)
     # Create optimizer
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(params)
@@ -41,7 +52,11 @@ def train_model(model, params, dataset, grad_loss_fn, n_epochs, learning_rate=0.
             if i == 0 or (i + 1) % 1000 == 0:
                 print(f"{i+1}: Loss: {loss:.2f}")
         print(f"Epoch {epoch} loss: {jnp.mean(loss)}")
-        evaluate_model(model, params, length=20+epoch//2)
+        evaluate_model(model, params, length=20 + epoch // 2)
+    model_path = os.path.join(model_dir, f"transformer_epoch_{n_epochs}.pkl")
+    save_params(params, model_path)
+    print(f"Saved model to {model_path}")
+    return params
 
 
 if __name__ == "__main__":
@@ -50,12 +65,13 @@ if __name__ == "__main__":
     rnd_key = jax.random.PRNGKey(seed)
     d_model = 512
     num_heads = 8
-    num_layers = 3
+    num_layers = 6
     d_ff = 512
     batch_size = 128
-    seq_len = 32
-    n_epochs = 100
+    seq_len = 64
+    n_epochs = 50
     learning_rate = 0.001
+    model_dir = "./models"
     dataset = TinyShakespeare(rnd_key, batch_size=batch_size, seq_len=seq_len)
     n_vocab = dataset.n_tokens
 
@@ -86,5 +102,12 @@ if __name__ == "__main__":
         return batched_loss(params, seq).mean()
 
     grad_loss_fn = jax.jit(jax.value_and_grad(get_loss, argnums=0))
-    train_model(jax.jit(transformer_model), params, dataset, grad_loss_fn, n_epochs, 
-                learning_rate=learning_rate)
+    params = train_model(
+        jax.jit(transformer_model),
+        params,
+        dataset,
+        grad_loss_fn,
+        n_epochs,
+        model_dir=model_dir,
+        learning_rate=learning_rate,
+    )
