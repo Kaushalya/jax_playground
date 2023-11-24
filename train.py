@@ -1,13 +1,16 @@
+import argparse
 import os
 from typing import Callable
+
 import jax
 import jax.numpy as jnp
-from tqdm import tqdm
 import optax
+import yaml
+from tqdm import tqdm
+
 from dataset import TinyShakespeare
-from layers import cross_entropy_loss
+from layers import create_autoregressive_transformer, cross_entropy_loss
 from model_utils import sample, save_params
-from layers import create_autoregressive_transformer
 
 
 def test_model(model, params, dataset):
@@ -59,19 +62,32 @@ def train_model(
     return params
 
 
+def load_configs(file_path):
+    with open(file_path, "r") as file:
+        configs = yaml.safe_load(file)
+    return configs
+
+
 if __name__ == "__main__":
-    print(jax.devices())
-    seed = 1212
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-conf_file_path", help="Path to the configuration file")
+    args = parser.parse_args()
+
+    conf_file_path = args.conf_file_path
+    configs = load_configs(conf_file_path)
+
+    seed = configs["seed"]
+    d_model = configs["d_model"]
+    num_heads = configs["num_heads"]
+    num_layers = configs["num_layers"]
+    d_ff = configs["d_ff"]
+    batch_size = configs["batch_size"]
+    seq_len = configs["seq_len"]
+    n_epochs = configs["n_epochs"]
+    learning_rate = configs["learning_rate"]
+    model_dir = configs["model_dir"]
+
     rnd_key = jax.random.PRNGKey(seed)
-    d_model = 512
-    num_heads = 8
-    num_layers = 6
-    d_ff = 512
-    batch_size = 128
-    seq_len = 64
-    n_epochs = 50
-    learning_rate = 0.001
-    model_dir = "./models"
     dataset = TinyShakespeare(rnd_key, batch_size=batch_size, seq_len=seq_len)
     n_vocab = dataset.n_tokens
 
