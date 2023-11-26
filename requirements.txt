@@ -3,3 +3,4 @@ optax
 jaxtyping
 tqdm
 pyyaml
+wandb

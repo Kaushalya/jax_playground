@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import optax
 import yaml
+import wandb
 from tqdm import tqdm
 
 from dataset import TinyShakespeare
@@ -38,6 +39,7 @@ def train_model(
     n_epochs: int,
     model_dir: str,
     learning_rate: float = 0.001,
+    _run: wandb.wandb_sdk.wandb_run.Run = None,
 ):
     os.makedirs(model_dir, exist_ok=True)
     # Create optimizer
@@ -54,11 +56,20 @@ def train_model(
             params = optax.apply_updates(params, updates)
             if i == 0 or (i + 1) % 1000 == 0:
                 print(f"{i+1}: Loss: {loss:.2f}")
-        print(f"Epoch {epoch} loss: {jnp.mean(loss)}")
+        epoch_loss = jnp.mean(jnp.array(losses))
+        print(f"Epoch {epoch} loss: {epoch_loss:.2f}")
+        if _run is not None:
+            _run.log({"train-loss": epoch_loss})
         evaluate_model(model, params, length=20 + epoch // 2)
     model_path = os.path.join(model_dir, f"transformer_epoch_{n_epochs}.pkl")
     save_params(params, model_path)
     print(f"Saved model to {model_path}")
+    model_artifact = wandb.Artifact(
+        "transformer_model", type="model", description="Transformer model"
+    )
+    model_artifact.add_file(model_path)
+    _run.log_artifact(model_artifact)
+    print("Logged model artifact to wandb")
     return params
 
 
@@ -118,12 +129,15 @@ if __name__ == "__main__":
         return batched_loss(params, seq).mean()
 
     grad_loss_fn = jax.jit(jax.value_and_grad(get_loss, argnums=0))
-    params = train_model(
-        jax.jit(transformer_model),
-        params,
-        dataset,
-        grad_loss_fn,
-        n_epochs,
-        model_dir=model_dir,
-        learning_rate=learning_rate,
-    )
+
+    with wandb.init(project="jax-transformer", config=configs) as run:
+        params = train_model(
+            jax.jit(transformer_model),
+            params,
+            dataset,
+            grad_loss_fn,
+            n_epochs,
+            model_dir=model_dir,
+            learning_rate=learning_rate,
+            _run=run,
+        )
