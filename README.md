@@ -43,7 +43,10 @@ d_ff = 512
 transformer_model, params = create_autoregressive_transformer(rnd_key, num_layers=4, num_heads=8, d_model=d_model, d_ff=d_ff, n_vocab=65, lambda_pe= 1 / d_model ** 0.5)
 ```
 
-The model parameters are optimized using [`Optax`](https://github.com/google-deepmind/optax) optimization library.
+### Dependencies
+- The model parameters are optimized using [`Optax`](https://github.com/google-deepmind/optax) optimization library. 
+- Shape and dtype of JAX ndarrays (parameters, inputs, and outputs) are annotated using [`jaxtyping`](https://github.com/google/jaxtyping).
+- [Weights & Biases](https://wandb.ai/) is used for experiment tracking.
 
 This implementation is inspired by https://github.com/awf/functional-transformer and https://github.com/vpj/jax_transformer/.
 
