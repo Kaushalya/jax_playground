@@ -232,7 +232,6 @@ def create_autoregressive_transformer(
     n_vocab: int,
     lambda_pe: float = 1.0,
     fast: bool = False,
-    eps: float = 1e-5,
 ) -> tuple[Callable, dict]:
     """Initializes the transformer model
 
@@ -242,7 +241,6 @@ def create_autoregressive_transformer(
         n_heads (int): Number of attention heads
         d_model (int): Dimensionality of the model
         d_ff (int): Dimensionality of the feed forward layer
-        eps (float, optional): Defaults to 1e-5.
 
     Returns:
         dict: A hierarchical dictionary of model parameters

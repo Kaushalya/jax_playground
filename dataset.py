@@ -1,3 +1,5 @@
+# Adapted from https://github.com/vpj/jax_transformer
+
 import logging
 from pathlib import Path
 from file_utils import download_file

@@ -47,10 +47,3 @@ The model parameters are optimized using [`Optax`](https://github.com/google-dee
 
 This implementation is inspired by https://github.com/awf/functional-transformer and https://github.com/vpj/jax_transformer/.
 
-## TODO
-- [x] Add wandb for logging
-- [ ] Profile inference on M2 Max
-- [ ] Optimize attention function
-- [x] Functions for saving and loading model parameters
-- [x] Use `jaxtyping` for type annotations
-- [ ] Add documentation on how to define a new model
