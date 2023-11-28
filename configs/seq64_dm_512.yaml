@@ -1,0 +1,11 @@
+seed: 1212
+num_heads: 8
+num_layers: 8
+d_model: 512
+d_ff: 512
+batch_size: 128
+seq_len: 128
+n_epochs: 100
+learning_rate: 0.001
+optimizer: adam
+model_dir: "./models"
