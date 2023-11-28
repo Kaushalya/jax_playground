@@ -63,12 +63,6 @@ def train_model(
     return params
 
 
-def load_configs(file_path):
-    with open(file_path, "r") as file:
-        configs = yaml.safe_load(file)
-    return configs
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-conf_file_path", help="Path to the configuration file")
