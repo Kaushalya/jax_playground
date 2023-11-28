@@ -44,6 +44,7 @@ transformer_model, params = create_autoregressive_transformer(rnd_key, num_layer
 ```
 
 ### Dependencies
+- This code is written using a minimal set of dependencies. Transformer architecture and neural layers are implemented using only `jax.numpy` operations. 
 - The model parameters are optimized using [`Optax`](https://github.com/google-deepmind/optax) optimization library. 
 - Shape and dtype of JAX ndarrays (parameters, inputs, and outputs) are annotated using [`jaxtyping`](https://github.com/google/jaxtyping).
 - [Weights & Biases](https://wandb.ai/) is used for experiment tracking.
