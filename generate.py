@@ -3,17 +3,11 @@ from typing import Callable
 
 import jax
 import jax.numpy as jnp
-import yaml
 
 from dataset import TinyShakespeare
+from file_utils import load_yaml
 from layers import create_autoregressive_transformer
 from model_utils import load_params, sample
-
-
-def load_configs(file_path):
-    with open(file_path, "r") as file:
-        configs = yaml.safe_load(file)
-    return configs
 
 
 def generate_text(model: Callable, params: dict, prompt_text: str, length: int) -> str:
@@ -41,7 +35,7 @@ if __name__ == "__main__":
     conf_path = args.conf_path
     prompt_text = args.prompt_text
 
-    config = load_configs(conf_path)
+    config = load_yaml(conf_path)
     rnd_key = jax.random.PRNGKey(config["seed"])
 
     dataset = TinyShakespeare(

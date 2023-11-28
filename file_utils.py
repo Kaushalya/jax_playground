@@ -1,9 +1,16 @@
+import logging
 import tarfile
 from pathlib import Path
-import logging
 
+import yaml
 
 _TAR_BUFFER_SIZE = 100_000
+
+
+def load_yaml(file_path):
+    with open(file_path, "r") as file:
+        configs = yaml.safe_load(file)
+    return configs
 
 
 def download_file(url: str, path: Path):

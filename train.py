@@ -5,23 +5,13 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 import optax
-import yaml
 import wandb
 from tqdm import tqdm
 
 from dataset import TinyShakespeare
 from layers import create_autoregressive_transformer, cross_entropy_loss
 from model_utils import sample, save_params
-
-
-def test_model(model, params, dataset):
-    x = dataset.data[0:16]
-    x_shape = x.shape
-    print(x_shape)
-    output = model(params, x)
-    loss, grad = grad_loss_fn(params, x)
-    print(output.shape)
-    print(f"Loss: {loss:.2f}")
+from file_utils import load_yaml
 
 
 def evaluate_model(model, params, length=20):
@@ -73,19 +63,13 @@ def train_model(
     return params
 
 
-def load_configs(file_path):
-    with open(file_path, "r") as file:
-        configs = yaml.safe_load(file)
-    return configs
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-conf_file_path", help="Path to the configuration file")
     args = parser.parse_args()
 
     conf_file_path = args.conf_file_path
-    configs = load_configs(conf_file_path)
+    configs = load_yaml(conf_file_path)
 
     seed = configs["seed"]
     d_model = configs["d_model"]
