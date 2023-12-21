@@ -42,15 +42,13 @@ if __name__ == "__main__":
         rnd_key, batch_size=config["batch_size"], seq_len=config["seq_len"]
     )
     n_vocab = dataset.n_tokens
+    model_conf = config["model_conf"]
     transformer_model, _ = create_autoregressive_transformer(
         rnd_key,
-        config["num_layers"],
-        config["num_heads"],
-        config["d_model"],
-        config["d_ff"],
-        n_vocab,
+        **model_conf,
+        n_vocab = n_vocab,
         fast=True,
-        lambda_pe=1 / (config["d_model"] ** 0.5),
+        lambda_pe=1 / (model_conf["d_model"] ** 0.5),
     )
     # Load the model parameters
     params_path = args.params_path
