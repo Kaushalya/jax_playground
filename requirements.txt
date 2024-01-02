@@ -4,3 +4,4 @@ jaxtyping
 tqdm
 pyyaml
 wandb
+einops
