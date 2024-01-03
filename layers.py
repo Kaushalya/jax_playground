@@ -1,7 +1,6 @@
 from typing import Callable, Union
 from jaxtyping import Key, Array, Float
-from jaxtyping import Key, Array, Float
-from einops import repeat
+from einops import repeat, rearrange
 import jax
 import jax.numpy as jnp
 
@@ -20,7 +19,8 @@ def rope_sincos(dim, seq_len):
 def rotate_every_two(x: jnp.ndarray) -> jnp.ndarray:
     x1 = x[..., ::2]
     x2 = x[..., 1::2]
-    return jnp.concatenate((-x2, x1), axis=-1)
+    x = jnp.stack((-x2, x1), axis=-1)
+    return rearrange(x, "... n d -> ... (n d)")
 
 
 def apply_rope_embedding(sin_cos: tuple, x: jnp.ndarray) -> jnp.ndarray:
