@@ -37,7 +37,10 @@ if __name__ == "__main__":
 
     config = load_yaml(conf_path)
     rnd_key = jax.random.PRNGKey(config["seed"])
-
+    use_rope_embeddings = (
+        config["use_rope_embeddings"] if "use_rope_embeddings" in config else False
+    )
+    print("Using rope embeddings:", use_rope_embeddings)
     dataset = TinyShakespeare(
         rnd_key, batch_size=config["batch_size"], seq_len=config["seq_len"]
     )
@@ -50,6 +53,7 @@ if __name__ == "__main__":
         config["d_ff"],
         n_vocab,
         fast=True,
+        use_rope_embeddings=use_rope_embeddings,
         lambda_pe=1 / (config["d_model"] ** 0.5),
     )
     # Load the model parameters
