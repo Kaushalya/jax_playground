@@ -45,5 +45,3 @@ def save_checkpoint(model: Callable, params: dict, path: str):
     """
     # Save the parameters
     save_params(params, path)
-
-    # TODO Save the model

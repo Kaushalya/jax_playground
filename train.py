@@ -81,6 +81,9 @@ if __name__ == "__main__":
     n_epochs = configs["n_epochs"]
     learning_rate = configs["learning_rate"]
     model_dir = configs["model_dir"]
+    use_rope_embeddings = (
+        configs["use_rope_embeddings"] if "use_rope_embeddings" in configs else False
+    )
 
     rnd_key = jax.random.PRNGKey(seed)
     dataset = TinyShakespeare(rnd_key, batch_size=batch_size, seq_len=seq_len)
@@ -95,6 +98,7 @@ if __name__ == "__main__":
         n_vocab,
         fast=True,
         lambda_pe=1 / (d_model**0.5),
+        use_rope_embeddings=use_rope_embeddings,
     )
 
     def transformer_loss(params, x):
