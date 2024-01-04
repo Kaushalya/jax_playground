@@ -8,6 +8,7 @@ from dataset import TinyShakespeare
 from file_utils import load_yaml
 from layers import create_autoregressive_transformer
 from model_utils import load_params, sample
+import time
 
 
 def generate_text(model: Callable, params: dict, prompt_text: str, length: int) -> str:
@@ -63,5 +64,8 @@ if __name__ == "__main__":
     print("Generating text...")
     # Sample from the model
     length = args.text_length
+    start_time = time.time()
     sampled = generate_text(jax.jit(transformer_model), params, prompt_text, length)
-    print(sampled)
+    end_time = time.time()
+    print("Generated text:", sampled)
+    print(f"Time taken: {end_time - start_time:.2f} seconds")
