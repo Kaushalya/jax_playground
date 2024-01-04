@@ -10,9 +10,11 @@ def cross_entropy_loss(output: jnp.ndarray, target: jnp.ndarray) -> jnp.ndarray:
     return -jax.nn.log_softmax(output)[target]
 
 
-def rope_sincos(dim, seq_len):
+def rope_sincos(dim: int, seq_len: int) -> tuple[jnp.ndarray, jnp.ndarray]:
     inv_freq = 1.0 / (10_000 ** (jnp.arange(0, dim, 2) / dim))
-    theta = jnp.einsum("i , j -> i j", jnp.arange(seq_len), inv_freq)
+    # Commented out the einsum version because it is not supported by jax-metal
+    # theta = jnp.einsum("i , j -> i j", jnp.arange(seq_len), inv_freq)
+    theta = jnp.arange(seq_len)[:, None] * inv_freq[None, :]
     return jnp.sin(theta), jnp.cos(theta)
 
 
@@ -20,14 +22,16 @@ def rotate_every_two(x: jnp.ndarray) -> jnp.ndarray:
     x1 = x[..., ::2]
     x2 = x[..., 1::2]
     x = jnp.stack((-x2, x1), axis=-1)
-    return rearrange(x, "... n d -> ... (n d)")
+    # return rearrange(x, "... n d -> ... (n d)")
+    return x.reshape(x.shape[:-2] + (-1,))
 
 
 def apply_rope_embedding(sin_cos: tuple, x: jnp.ndarray) -> jnp.ndarray:
     """Implementation of the Rotary Positional encoding in JAX.
     (RoFormer: Enhanced Transformer with Rotary Position Embedding, Su et al., 2021)
     """
-    sin_t, cos_t = map(lambda t: repeat(t, "... b n -> ... b (n j)", j=2), sin_cos)
+    # sin_t, cos_t = map(lambda t: repeat(t, "... b n -> ... b (n j)", j=2), sin_cos)
+    sin_t, cos_t = map(lambda t: t.repeat(2, axis=-1), sin_cos)
     return x * cos_t + rotate_every_two(x) * sin_t
 
 

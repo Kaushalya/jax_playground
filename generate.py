@@ -58,6 +58,7 @@ if __name__ == "__main__":
     )
     # Load the model parameters
     params_path = args.params_path
+    print("Loading model parameters from: ", params_path)
     params = load_params(params_path)
     print("Generating text...")
     # Sample from the model
